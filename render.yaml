@@ -1,0 +1,65 @@
+# Render Blueprint: the server half of Tailcoat. The site and its API run on Vercel; both sides
+# share one Turso database. Region must not be in the US: the Binance Web3 API refuses US IPs.
+# Apply with "New +" > "Blueprint" in the Render dashboard, then fill the secrets it asks for.
+services:
+  - type: worker
+    name: tailcoat-worker
+    runtime: node
+    region: singapore
+    plan: starter
+    buildCommand: npm ci
+    startCommand: npx tsx worker/index.ts
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "22.12.0"
+      - key: DATABASE_URL
+        sync: false # libsql://<db>.turso.io
+      - key: DATABASE_AUTH_TOKEN
+        sync: false
+      - key: OPERATOR_PRIVATE_KEY
+        sync: false # 0x... the operator key; it can only call TailcoatMirror
+      - key: NEXT_PUBLIC_MIRROR_ADDRESS
+        sync: false
+      - key: BINANCE_WEB3_API_KEY
+        sync: false
+      - key: BINANCE_WEB3_API_SECRET
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: SEC_USER_AGENT
+        sync: false # "Tailcoat you@example.com"
+      - key: BSC_RPC_URL
+        value: https://bsc-dataseed.binance.org
+      - key: CASH_TOKEN
+        value: "0x55d398326f99059fF775485246999027B3197955"
+      - key: READ_BATCH
+        value: "2"
+      - key: MAX_PRICE_DEVIATION
+        value: "0.03"
+      - key: HOUSE_WATCHLIST
+        value: pelosi,khanna,gottheimer,mccaul,greene,crenshaw,tuberville
+
+  - type: web
+    name: tailcoat-agent
+    runtime: node
+    region: singapore
+    plan: starter
+    rootDir: agent/tailcoatreader
+    buildCommand: corepack enable && corepack prepare pnpm@10 --activate && pnpm install --frozen-lockfile
+    startCommand: cd app/agent && AGENT_PORT=$PORT pnpm exec tsx src/dualMain.ts
+    healthCheckPath: /ping
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "22.12.0"
+      - key: WALLET_PASSWORD
+        sync: false # from .studio/.env.local on the machine that ran `bag wallet new`
+      - key: WALLET_KEYSTORE_JSON
+        sync: false # the one-line contents of .studio/wallets/<address>.json
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: TAILCOAT_URL
+        sync: false # the Vercel site, e.g. https://tailcoat.vercel.app
+      - key: RPC_URL
+        value: https://bsc-dataseed.binance.org
